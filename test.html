@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #result {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>User Authentication System Test</h2>
+    
+    <div class="section">
+        <h3>Register New User</h3>
+        <form id="registerForm" onsubmit="event.preventDefault(); register();">
+            <div class="form-group">
+                <label for="firstname">First Name:</label>
+                <input type="text" id="firstname" name="firstname" placeholder="Enter first name" required>
+            </div>
+            <div class="form-group">
+                <label for="lastname">Last Name:</label>
+                <input type="text" id="lastname" name="lastname" placeholder="Enter last name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" placeholder="Enter email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit">Register</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h3>Login</h3>
+        <form id="loginForm" onsubmit="event.preventDefault(); login();">
+            <div class="form-group">
+                <label for="loginEmail">Email:</label>
+                <input type="email" id="loginEmail" name="loginEmail" placeholder="Enter email" required>
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Password:</label>
+                <input type="password" id="loginPassword" name="loginPassword" placeholder="Enter password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h3>Other Actions</h3>
+        <button onclick="accessProtected()">Access Protected Route</button>
+        <button onclick="viewUsers()">View All Users</button>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <div id="result" style="margin-top: 20px; white-space: pre-wrap;"></div>
+
+    <script>
+        let token = '';
+        const API_BASE_URL = window.location.protocol + '//' + window.location.hostname + ':3000';
+
+        // Helper function to make API calls
+        async function makeAPICall(endpoint, options = {}) {
+            try {
+                const url = `${API_BASE_URL}${endpoint}`;
+                console.log(`Making ${options.method || 'GET'} request to: ${url}`);
+                console.log('Request options:', {
+                    ...options,
+                    body: options.body ? JSON.parse(options.body) : undefined
+                });
+                
+                const response = await fetch(url, {
+                    ...options,
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                return { response, data };
+            } catch (error) {
+                console.error('API call error:', error);
+                console.error('Full error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    type: error.name
+                });
+                throw error;
+            }
+        }
+
+        async function register() {
+            try {
+                const firstname = document.getElementById('firstname').value;
+                const lastname = document.getElementById('lastname').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                console.log('Attempting registration with:', { email, firstname, lastname });
+
+                const { response, data } = await makeAPICall('/user/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstname,
+                        lastname,
+                        email,
+                        password
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = `
+                        <div style="color: green;">
+                            <strong>Registration Successful!</strong><br>
+                            User: ${data.user.email}<br>
+                            Token: ${data.token}
+                        </div>
+                    `;
+                    document.getElementById('registerForm').reset();
+                } else {
+                    throw new Error(data.msg || 'Registration failed');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                document.getElementById('result').innerHTML = `
+                    <div style="color: red;">
+                        <strong>Registration Error</strong><br>
+                        Type: ${error.name}<br>
+                        Message: ${error.message}<br>
+                        <br>
+                        Troubleshooting Steps:<br>
+                        1. Is the server running? (node app.js)<br>
+                        2. Is MongoDB installed and running?<br>
+                        3. Check browser console for more details<br>
+                        4. Try refreshing the page
+                    </div>
+                `;
+            }
+        }
+
+        async function login() {
+            try {
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+
+                console.log('Login attempt for email:', email);
+
+                const { response, data } = await makeAPICall('/user/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (data.token) {
+                    token = data.token;
+                    console.log('Token received');
+                }
+
+                document.getElementById('result').innerHTML = `
+                    Status: ${response.status}<br>
+                    Response: ${JSON.stringify(data, null, 2)}
+                `;
+
+                if (response.ok) {
+                    document.getElementById('loginForm').reset();
+                }
+            } catch (error) {
+                handleError(error, 'Login');
+            }
+        }
+
+        async function accessProtected() {
+            try {
+                if (!token) {
+                    throw new Error('No authentication token available. Please login first.');
+                }
+
+                const { response, data } = await makeAPICall('/home', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                document.getElementById('result').innerHTML = `
+                    Status: ${response.status}<br>
+                    Response: ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                handleError(error, 'Protected Access');
+            }
+        }
+
+        async function viewUsers() {
+            try {
+                const { response, data } = await makeAPICall('/user/view');
+
+                document.getElementById('result').innerHTML = `
+                    <h4>Registered Users:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                handleError(error, 'View Users');
+            }
+        }
+
+        async function logout() {
+            try {
+                if (!token) {
+                    throw new Error('No authentication token available. Already logged out?');
+                }
+
+                const { response, data } = await makeAPICall('/user/logout', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                token = '';
+                document.getElementById('result').innerHTML = `
+                    Status: ${response.status}<br>
+                    Response: ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                handleError(error, 'Logout');
+            }
+        }
+
+        function handleError(error, operation) {
+            console.error(`${operation} error:`, error);
+            document.getElementById('result').innerHTML = `
+                <div style="color: red;">
+                    <strong>${operation} Error</strong><br>
+                    Type: ${error.name}<br>
+                    Message: ${error.message}<br>
+                    <br>
+                    Troubleshooting Steps:<br>
+                    1. Is the server running? (node app.js)<br>
+                    2. Is MongoDB installed and running?<br>
+                    3. Check browser console for more details<br>
+                    4. Try refreshing the page
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
